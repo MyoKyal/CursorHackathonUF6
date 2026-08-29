@@ -86,6 +86,21 @@ export function rememberListing(listing: Listing, silent = false) {
   saveFlow(flow, silent);
 }
 
+export function syncRememberedListings(live: Listing[], silent = true) {
+  const flow = loadFlow();
+  const liveIds = new Set(live.map((listing) => listing.id));
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  const pending = flow.listings.filter((listing) => {
+    if (liveIds.has(listing.id)) return false;
+    // Keep only just-published posts that may not have appeared in the live query yet.
+    return +new Date(listing.created_at) > cutoff;
+  });
+  flow.listings = [...live, ...pending].filter(
+    (listing, index, all) => all.findIndex((item) => item.id === listing.id) === index,
+  );
+  saveFlow(flow, silent);
+}
+
 export function rememberedListings(): Listing[] {
   return loadFlow().listings;
 }

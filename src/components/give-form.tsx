@@ -128,20 +128,24 @@ export function GiveForm() {
 
     let photos: string[] = [];
     if (file) {
-      const path = `${user.id}/${listing.id}-${file.name}`;
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${user.id}/${listing.id}-${safeName}`;
       const { error: upErr } = await supabase.storage
         .from("listing-photos")
-        .upload(path, file, { upsert: true });
+        .upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
       if (upErr) {
-        toast.message("Post saved, but photo upload needs the listing-photos bucket.");
+        toast.error(`Photo upload failed: ${upErr.message}`);
       } else {
         const { data: pub } = supabase.storage.from("listing-photos").getPublicUrl(path);
         photos = [pub.publicUrl];
-        await supabase.from("listing_photos").insert({
+        const { error: photoRowErr } = await supabase.from("listing_photos").insert({
           listing_id: listing.id,
           url: pub.publicUrl,
           sort_order: 0,
         });
+        if (photoRowErr) {
+          toast.message("Photo uploaded, but feed link save failed. Refreshing may still show it.");
+        }
       }
     }
 

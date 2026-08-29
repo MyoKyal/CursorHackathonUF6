@@ -1,5 +1,4 @@
--- Storage: create buckets listing-photos and event-photos (public) in the dashboard,
--- then run this in the SQL editor.
+-- Storage: create buckets listing-photos and event-photos (public).
 
 insert into storage.buckets (id, name, public)
 values
@@ -15,6 +14,20 @@ using (bucket_id in ('listing-photos', 'event-photos'));
 drop policy if exists "listing photos auth upload" on storage.objects;
 create policy "listing photos auth upload"
 on storage.objects for insert
+with check (
+  bucket_id in ('listing-photos', 'event-photos')
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "listing photos own update" on storage.objects;
+create policy "listing photos own update"
+on storage.objects for update
+using (
+  bucket_id in ('listing-photos', 'event-photos')
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
 with check (
   bucket_id in ('listing-photos', 'event-photos')
   and auth.role() = 'authenticated'

@@ -6,6 +6,7 @@ import {
   overlayRequestsForListing,
   rememberListing,
   rememberedListings,
+  syncRememberedListings,
 } from "./flow-store";
 import { createClient } from "./supabase/client";
 import type {
@@ -160,9 +161,9 @@ export async function fetchListings(): Promise<{
       profileMap(rows.map((r) => r.user_id as string)),
     ]);
     const live = mappedRows(rows, counts, donors);
-    for (const listing of live) rememberListing(listing, true);
+    syncRememberedListings(live, true);
     return {
-      listings: mergeListings(live, rememberedListings(), SEED_LISTINGS),
+      listings: mergeListings(rememberedListings(), SEED_LISTINGS),
       source: "live",
       error: null,
     };
