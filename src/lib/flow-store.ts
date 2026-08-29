@@ -80,6 +80,35 @@ export function isListingOwner(
   return Boolean(mapped?.includes(listing.user_id));
 }
 
+const ASSORTED_TSHIRT_IDS = new Set([
+  "6230ebae-7ba2-4198-879b-894ee20e7535",
+  "0259f303-6922-441b-87cd-7f4edc24e3f4",
+]);
+
+function isAssortedTShirt(listing: { id: string; title: string }) {
+  return (
+    ASSORTED_TSHIRT_IDS.has(listing.id) ||
+    /assorted\s*t[-\s]?shirts?/i.test(listing.title)
+  );
+}
+
+/** Remove Assorted T-Shirts from browser localStorage cache (and related requests/threads). */
+export function purgeAssortedTShirts(silent = true) {
+  const flow = loadFlow();
+  const removedIds = new Set(
+    flow.listings.filter(isAssortedTShirt).map((listing) => listing.id),
+  );
+  for (const id of ASSORTED_TSHIRT_IDS) removedIds.add(id);
+  if (!removedIds.size && !flow.listings.some(isAssortedTShirt)) return;
+
+  const before = flow.listings.length;
+  flow.listings = flow.listings.filter((listing) => !isAssortedTShirt(listing) && !removedIds.has(listing.id));
+  flow.requests = flow.requests.filter((request) => !removedIds.has(request.listing_id));
+  flow.threads = flow.threads.filter((thread) => !removedIds.has(thread.listing_id));
+  for (const id of removedIds) delete flow.listingStatus[id];
+  if (flow.listings.length !== before || removedIds.size) saveFlow(flow, silent);
+}
+
 export function rememberListing(listing: Listing, silent = false) {
   const flow = loadFlow();
   flow.listings = [listing, ...flow.listings.filter((item) => item.id !== listing.id)];

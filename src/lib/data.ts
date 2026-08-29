@@ -1,4 +1,5 @@
 import { SEED_EVENTS, SEED_LISTINGS, SEED_PROFILES } from "./community-seed";
+import { purgeAssortedTShirts } from "./flow-store";
 import {
   applyListingOverlay,
   mergeListings,
@@ -139,12 +140,22 @@ function mappedRows(
   });
 }
 
+function withoutAssortedTShirts(listings: Listing[]) {
+  return listings.filter(
+    (listing) =>
+      listing.id !== "6230ebae-7ba2-4198-879b-894ee20e7535" &&
+      listing.id !== "0259f303-6922-441b-87cd-7f4edc24e3f4" &&
+      !/assorted\s*t[-\s]?shirts?/i.test(listing.title),
+  );
+}
+
 export async function fetchListings(): Promise<{
   listings: Listing[];
   source: DataSource;
   error: string | null;
 }> {
-  const fallback = mergeListings(rememberedListings(), SEED_LISTINGS);
+  purgeAssortedTShirts(true);
+  const fallback = withoutAssortedTShirts(mergeListings(rememberedListings(), SEED_LISTINGS));
   try {
     const supabase = createClient();
     const { data, error } = await timed(
@@ -160,10 +171,11 @@ export async function fetchListings(): Promise<{
       requestCounts(rows.map((r) => r.id as string)),
       profileMap(rows.map((r) => r.user_id as string)),
     ]);
-    const live = mappedRows(rows, counts, donors);
+    const live = withoutAssortedTShirts(mappedRows(rows, counts, donors));
     syncRememberedListings(live, true);
+    purgeAssortedTShirts(true);
     return {
-      listings: mergeListings(rememberedListings(), SEED_LISTINGS),
+      listings: withoutAssortedTShirts(mergeListings(rememberedListings(), SEED_LISTINGS)),
       source: "live",
       error: null,
     };
@@ -177,10 +189,20 @@ export async function fetchListings(): Promise<{
 }
 
 export async function fetchListing(id: string): Promise<Listing | null> {
+  purgeAssortedTShirts(true);
+  if (
+    id === "6230ebae-7ba2-4198-879b-894ee20e7535" ||
+    id === "0259f303-6922-441b-87cd-7f4edc24e3f4"
+  ) {
+    return null;
+  }
   const local =
-    rememberedListings().find((listing) => listing.id === id) ??
-    SEED_LISTINGS.find((listing) => listing.id === id) ??
-    null;
+    withoutAssortedTShirts(
+      [
+        rememberedListings().find((listing) => listing.id === id),
+        SEED_LISTINGS.find((listing) => listing.id === id),
+      ].filter(Boolean) as Listing[],
+    )[0] ?? null;
   try {
     const supabase = createClient();
     const { data, error } = await timed(
@@ -192,7 +214,8 @@ export async function fetchListing(id: string): Promise<Listing | null> {
         requestCounts([id]),
         profileMap([row.user_id as string]),
       ]);
-      const listing = mappedRows([row], counts, donors)[0];
+      const listing = withoutAssortedTShirts(mappedRows([row], counts, donors))[0];
+      if (!listing) return null;
       rememberListing(listing, true);
       return applyListingOverlay([listing])[0];
     }
